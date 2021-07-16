@@ -1,7 +1,7 @@
 <template>
   <div class="app">
     <div class="head">
-      <h2>杂乱无章</h2>
+      <h2 @click="clickTitle">杂乱无章</h2>
     </div>
     <List class="body" item-layout="vertical">
       <div v-if="showAdd" class="add">
@@ -43,6 +43,7 @@
 
 <script>
 const baseUrl = "http://mywords.eternitywith.xyz:3004";
+// const baseUrl = "http://localhost:3000";
 export default {
   data() {
     return {
@@ -55,6 +56,8 @@ export default {
       pagedData:[], // 分页后的总数据
       listData:[], // 每页的数据
       sourcePagedData:[], // 每页的原始数据
+      clickTag: 0,
+      timeout: null,
     };
   },
   async asyncData({ $http }) {
@@ -99,7 +102,6 @@ export default {
         })
     },
     getPage(data){ // 按年分页
-    console.log(data);
       if(!data.length) return;
       let dateYear = [];
       this.page.current = 1;
@@ -126,6 +128,22 @@ export default {
     },
     keyDownEvent(e){
       if (e.ctrlKey && e.keyCode === 65) {
+        this.showAdd = true;
+      }
+    },
+    clickTitle(e){
+      this.timeout = setTimeout(()=>{
+        if(this.timeout){
+          this.clickTag++;
+        } else {
+          this.clickTag = 0;
+        }
+      }, 0)
+      setTimeout(()=>{
+        clearTimeout(this.timeout);
+        this.clickTag = 0;
+      }, 2000)
+      if(this.clickTag === 5){
         this.showAdd = true;
       }
     }
