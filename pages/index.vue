@@ -22,17 +22,56 @@
           <li>
             <Icon
               :type="item.action === 'like' ? 'ios-thumbs-up' : 'ios-thumbs-up-outline'"
-              @click="like(index)"
+              @click="like(index, false)"
             />
             {{item.like.length}}
           </li>
           <li>
             <Icon
               :type="item.action === 'dislike' ? 'ios-thumbs-down' : 'ios-thumbs-down-outline'"
-              @click="dislike(index)"
+              @click="dislike(index, false)"
             />
             {{item.dislike.length}}
           </li>
+          <li>
+            <Icon type="ios-chatbubbles-outline" @click="doMessage(index)" />
+            {{item.message.length}}
+          </li>
+          <div v-if="item.openMsg" class="message">
+            <ListItem v-for="(itemMsg,indexMsg) in item.message" :key="itemMsg.id">
+              <ListItemMeta :title="itemMsg.user.split('@')[0].slice(0, 3) + '***' + itemMsg.user.split('@')[0].slice(-3) + '：' + itemMsg.context" :description="itemMsg.date" />
+              <template slot="action">
+                <li>
+                  <Icon
+                    :type="itemMsg.action === 'like' ? 'ios-thumbs-up' : 'ios-thumbs-up-outline'"
+                    @click="like(indexMsg, true, itemMsg.id)"
+                  />
+                  {{itemMsg.like.length}}
+                </li>
+                <li>
+                  <Icon
+                    :type="itemMsg.action === 'dislike' ? 'ios-thumbs-down' : 'ios-thumbs-down-outline'"
+                    @click="dislike(indexMsg, true, itemMsg.id)"
+                  />
+                  {{itemMsg.dislike.length}}
+                </li>
+                <!-- <li>
+                  <Icon type="ios-chatbubbles-outline" @click="doMessage(indexMsg)" />
+                  {{itemMsg.message.length}}
+                </li>-->
+              </template>
+            </ListItem>
+            <div class="addMsg">
+              <Input
+                class="input"
+                v-model="newMsg"
+                type="textarea"
+                :autosize="{maxRows: 5}"
+                placeholder="Enter something..."
+              />
+              <Button class="btn" type="primary" shape="circle" @click="addMsg(item.id, index)">留言</Button>
+            </div>
+          </div>
         </template>
       </ListItem>
     </List>
@@ -44,8 +83,8 @@
 </template>
 
 <script>
-// const baseUrl = "http://mywords.eternitywith.xyz:3004";
-const baseUrl = "http://localhost:3000";
+const baseUrl = "http://mywords.eternitywith.xyz:3004";
+// const baseUrl = "http://localhost:3000";
 export default {
   data() {
     return {
@@ -59,68 +98,78 @@ export default {
       timeout: null,
       email: "",
       isLogin: false,
+      newMsg: "",
+      openMsgId: null, // 记录被打开的留言板的id，发布留言后通过此id控制留言板是开启状态
+      openMsgIndex: null, //记录被打开的留言板的index
     };
   },
   async asyncData({ $http }) {
     const res = await $http.$get(baseUrl + "/getData?page=1");
-    console.log(res);
     res.data.forEach((item) => {
       item["action"] = null;
+      item["openMsg"] = false;
+      item.message.forEach((i) => {
+        i["action"] = null;
+      });
     });
     return {
       listData: res.data,
-      totalPage: res.totalPage
+      totalPage: res.totalPage,
     };
   },
   methods: {
-    like(index) {
+    like(index, isMessage, id) {
       if (!this.isLogin) {
         this.$Message.warning("请先登录！");
         return;
       }
-      if (this.listData[index].action === "like") {
+      let data = isMessage
+        ? this.listData[this.openMsgIndex].message[index]
+        : this.listData[index];
+      if (data.action === "like") {
         return;
-      } else if (this.listData[index].action === "dislike") {
-        this.listData[index].dislike.forEach((item, ind) => {
-          if (item === this.email)
-            this.listData[index].dislike.splice(ind, 1);
+      } else if (data.action === "dislike") {
+        data.dislike.forEach((item, ind) => {
+          if (item === this.email) data.dislike.splice(ind, 1);
         });
       }
-      this.listData[index].like.unshift(this.email);
-      this.listData[index].action = "like";
-      this.changeData(this.listData[index]);
+      data.like.unshift(this.email);
+      data.action = "like";
+      isMessage ? this.changeMessage(data, this.openMsgId, id) : this.changeData(data);
     },
-    dislike(index) {
+    dislike(index, isMessage, id) {
       if (!this.isLogin) {
         this.$Message.warning("请先登录！");
         return;
       }
-      if (this.listData[index].action === "dislike") {
+      let data = isMessage
+        ? this.listData[this.openMsgIndex].message[index]
+        : this.listData[index];
+      if (data.action === "dislike") {
         return;
-      } else if (this.listData[index].action === "like") {
-        this.listData[index].like.forEach((item, ind) => {
-          if (item === this.email) (this.listData[index].like.splice(ind, 1), console.log(111));
+      } else if (data.action === "like") {
+        data.like.forEach((item, ind) => {
+          if (item === this.email) data.like.splice(ind, 1);
         });
       }
-      // console.log(this.listData[index]);
-      this.listData[index].dislike.unshift(this.email);
-      this.listData[index].action = "dislike";
-      // console.log(this.listData[index]);
-      this.changeData(this.listData[index]);
+      data.dislike.unshift(this.email);
+      data.action = "dislike";
+      isMessage ? this.changeMessage(data, this.openMsgId, id) : this.changeData(data);
     },
     async changeData(data) {
       await this.$http.$post(baseUrl + "/changeData", {
         data,
       });
-      // this.updateData();
+    },
+    async changeMessage(data, id, msgId) {
+      await this.$http.$post(baseUrl + "/changeMsgData", {
+        data,
+        id,
+        msgId,
+      });
     },
     async addData() {
-      if (!this.newContext) {
-        this.$Message.warning({
-          content: "不能为空！",
-        });
-        return;
-      }
+      if (!this.newContext) return;
       await this.$http.$post(baseUrl + "/addData", {
         data: this.newContext,
       });
@@ -131,18 +180,25 @@ export default {
       });
     },
     async updateData() {
-      const res = await this.$http.$get(baseUrl + "/getData?page=" + this.page.current);
-      this.getPage()
-      this.listData = res.data
+      const res = await this.$http.$get(
+        baseUrl + "/getData?page=" + this.page.current
+      );
+      this.getPage();
+      this.judgeLiked(res.data);
+      this.judgeOpenMsg(res.data, this.openMsgId);
+      this.listData = res.data;
     },
     async changePage(currentPage) {
       this.page.current = currentPage;
-      const res = await this.$http.$get(baseUrl + "/getData?page=" + this.page.current);
+      const res = await this.$http.$get(
+        baseUrl + "/getData?page=" + this.page.current
+      );
       res.data.forEach((item) => {
         item["action"] = null;
       });
+      this.judgeLiked(res.data);
+      this.judgeOpenMsg(res.data, this.openMsgId);
       this.listData = res.data;
-      this.judgeLiked();
     },
     keyDownEvent(e) {
       if (e.ctrlKey && e.keyCode === 65) {
@@ -190,29 +246,80 @@ export default {
       let reg = /^\w+([-+.]\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/;
       if (reg.test(this.email)) {
         this.isLogin = true;
-        this.judgeLiked()
+        this.judgeLiked(this.listData);
       } else {
         this.$Message.warning("格式错误！");
       }
     },
     _cancel() {},
-    getPage(){
-      this.page.total = this.totalPage * 10
+    getPage() {
+      this.page.total = this.totalPage * 10;
     },
-    judgeLiked(){
-      this.listData.forEach((item) => {
-          if (item.like.includes(this.email)) {
-            item.action = "like";
-          } else if (item.dislike.includes(this.email)) {
-            item.action = "dislike";
+    judgeLiked(sourceData) {
+      sourceData.forEach((item) => {
+        if (item.like.includes(this.email)) {
+          item.action = "like";
+        } else if (item.dislike.includes(this.email)) {
+          item.action = "dislike";
+        } else {
+          item.action = null;
+        }
+        item.message.forEach((i) => {
+          if (i.like.includes(this.email)) {
+            i.action = "like";
+          } else if (i.dislike.includes(this.email)) {
+            i.action = "dislike";
           } else {
-            item.action = null;
+            i.action = null;
           }
         });
-    }
+      });
+    },
+    judgeOpenMsg(sourceData, id) {
+      sourceData.forEach((item) => {
+        item.openMsg = false;
+        if (id && item.id == id) {
+          item.openMsg = true;
+        }
+      });
+    },
+    doMessage(index) {
+      this.listData[index].openMsg = !this.listData[index].openMsg;
+      // if(!this.listData[index].openMsg) this.openMsgId = null;
+      this.openMsgId = this.listData[index].openMsg
+        ? this.listData[index].id
+        : null;
+      this.openMsgIndex = index;
+    },
+    like_msg() {
+      if (!this.isLogin) {
+        this.$Message.warning("请先登录！");
+        return;
+      }
+    },
+    dislike_msg() {
+      if (!this.isLogin) {
+        this.$Message.warning("请先登录！");
+        return;
+      }
+    },
+    async addMsg(id, index) {
+      if (!this.isLogin) {
+        this.$Message.warning("请先登录！");
+        return;
+      }
+      if (!this.newMsg) return;
+      await this.$http.$post(baseUrl + "/addMsg?id=" + id, {
+        newMsg: this.newMsg,
+        email: this.email,
+      });
+      this.openMsgId = id;
+      this.updateData();
+      this.newMsg = "";
+    },
   },
   mounted() {
-    this.getPage()
+    this.getPage();
     document.addEventListener("keydown", this.keyDownEvent);
   },
   beforeDestroy() {
@@ -251,14 +358,8 @@ export default {
 
 .app .body .add .input {
   width: 500px;
-  max-height: 100px;
-  vertical-align: bottom;
 }
 
-.app .body .add .btn {
-  /* float: right; */
-  vertical-align: bottom;
-}
 .ivu-list-item.ivu-list-item-no-flex {
   margin-bottom: 10px;
 }
@@ -266,4 +367,31 @@ export default {
 .app .ivu-page {
   float: right;
 }
+
+.message {
+  /* height: 100px; */
+  padding-left: 20px;
+  /* background-color: rgb(202, 202, 202); */
+  transform: scale(0.9, 0.9) ;
+  /* position: relative; */
+  /* top: -20px; */
+}
+
+.message .addMsg {
+  /* width: 400px; */
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  position: relative;
+  top: 3px;
+  margin-top: 20px;
+}
+.message .addMsg .input {
+  width: 500px;
+}
+
+.message .ivu-list-item.ivu-list-item-no-flex {
+  margin-bottom: 0px;
+}
+
 </style>

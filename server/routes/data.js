@@ -21,17 +21,21 @@ router.get('/getData', async (ctx, next) => {
     });
     pagedData.push(temArr);
   });
-  ctx.body = {data: pagedData[page], totalPage:pagedData.length};
+  ctx.body = {
+    data: pagedData[page],
+    totalPage: pagedData.length
+  };
 });
 
 router.post('/addData', async (ctx, next) => {
   let data = JSON.parse(fs.readFileSync(targetFile))
   let newData = {
-    "id": data.length,
+    "id": data.length + 1,
     "context": ctx.request.body.data,
     "date": format(new Date(), 'yyyy-MM-dd-hh-mm'),
     "like": [],
-    "dislike": []
+    "dislike": [],
+    "message": []
   }
   data.unshift(newData)
   fs.writeFileSync(targetFile, JSON.stringify(data))
@@ -48,6 +52,51 @@ router.post('/changeData', async (ctx, next) => {
   })
   fs.writeFileSync(targetFile, JSON.stringify(dataAll))
   ctx.body = newData
+});
+
+router.post('/addMsg', async (ctx, next) => {
+  let data = JSON.parse(fs.readFileSync(targetFile))
+  let id = ctx.request.query.id;
+  let {
+    email,
+    newMsg
+  } = ctx.request.body
+  let newData = {}
+  data.forEach(item => {
+    if (item.id == id) {
+      newData = {
+        "id": item.message.length + 1,
+        "user": email,
+        "context": newMsg,
+        "date": format(new Date(), 'yyyy-MM-dd-hh-mm'),
+        "like": [],
+        "dislike": []
+      }
+      item.message.unshift(newData)
+    }
+  })
+  fs.writeFileSync(targetFile, JSON.stringify(data))
+  ctx.body = newData
+});
+
+router.post('/changeMsgData', async (ctx, next) => {
+  let dataAll = JSON.parse(fs.readFileSync(targetFile))
+  let {
+    data,
+    id,
+    msgId
+  } = ctx.request.body
+  dataAll.forEach((item, index) => {
+    if (item.id == id) {
+      item.message.forEach((i, ind) => {
+        if (i.id == msgId) dataAll[index].message[ind] = {
+          ...data
+        }
+      })
+    }
+  })
+  fs.writeFileSync(targetFile, JSON.stringify(dataAll))
+  ctx.body = data
 });
 
 function format(date, fmt) {
