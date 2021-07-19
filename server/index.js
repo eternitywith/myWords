@@ -23,7 +23,8 @@ async function start () {
 
   const {
     host = process.env.HOST || 'localhost',
-    port = process.env.PORT || 3004
+    // port = process.env.PORT || 3004
+    port = process.env.PORT || 3000
   } = nuxt.options.server
 
   // Build in development

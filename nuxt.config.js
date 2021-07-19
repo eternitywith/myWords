@@ -66,8 +66,12 @@ module.exports = {
     }
   },
   telemetry: false,
+  // server:{
+  //   host: '0.0.0.0',
+  //   port: 3004
+  // }
   server:{
     host: '0.0.0.0',
-    port: 3004
+    port: 3000
   }
 }
